@@ -11,7 +11,7 @@ if (isset($_SERVER['REDIRECT_URL']))
 
     $router = $urlList[0];
 
-    if ($router == 'api' && rtrim($originalURL, '/') == $originalURL) 
+    if ($router == 'api') 
     {
         if (isset($urlList[1]))
         {
@@ -20,16 +20,12 @@ if (isset($_SERVER['REDIRECT_URL']))
         }
         else
         {
-            setHTTPStatus("404", "Вы отправили запрос не на api");
+            setHTTPStatus("404", "Вы отправили запрос на api, но нужно отправлять на конкретный эндпоинт");
         }
-    }
-    else if (rtrim($originalURL, '/') == $originalURL)
-    {
-        setHTTPStatus("404", "Вы отправили запрос не на api");
     }
     else
     {
-        setHTTPStatus("404", "Вы отправили запрос на /api/, а не на эндпоинт");
+        setHTTPStatus("404", "Вы отправили запрос не на /api, а на нечто иное");
     }
 }
 else
