@@ -1,5 +1,6 @@
 <?php
 include_once "helpers/headers.php";
+include_once "helpers/secondPartOfEndpoint.php";
 
 header("Content-type: application/json");
 
@@ -15,8 +16,7 @@ if (isset($_SERVER['REDIRECT_URL']))
     {
         if (isset($urlList[1]))
         {
-            echo $urlList[1];
-            echo 'Вы обратились по нужному адресу';
+            routeSecondPartOfRoute($urlList[1]);
         }
         else
         {
