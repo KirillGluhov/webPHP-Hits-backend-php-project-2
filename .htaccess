@@ -8,3 +8,5 @@ AddDefaultCharset UTF-8
 # Display errors or not
 php_flag display_errors on
 </IfModule>
+
+php_value date.timezone 'Asia/Tomsk'

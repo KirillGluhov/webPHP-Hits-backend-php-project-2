@@ -1,4 +1,6 @@
-<?php function setHTTPStatus($status = "200", $message = null)
+<?php
+
+function setHTTPStatus($status = "200", $message = null, $errors = null)
 {
     switch ($status) 
     {
@@ -25,10 +27,16 @@
             $status = "HTTP/1.0 500 Iternal Server Error";
             break;
     }
+
     header($status);
-    if (!is_null($message))
+
+    if (!is_null($message) && !is_null($errors))
     {
-        echo json_encode(['message' => $message, 'status'=> $status]);
+        echo json_encode(['message' => $message, "status" => $status, "errors"=> $errors]);
+    }
+    else if (!is_null($message))
+    {
+        echo json_encode(['message' => $message, "status" => $status]);
     }
 }
 
