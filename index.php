@@ -32,11 +32,23 @@ function getMethod()
 
 function getBody()
 {
-    if (file_get_contents('php://input'))
+    $input = file_get_contents('php://input');
+
+    if ($input !== false) 
     {
-        return json_decode(file_get_contents('php://input'), true);
-    }
-    else
+        $input = preg_replace('/,\s*([\]}])/m', '$1', $input);
+        $jsonData = json_decode($input, true);
+    
+        if ($jsonData !== null) 
+        {
+            return $jsonData;
+        } 
+        else 
+        {
+            return null;
+        }
+    } 
+    else 
     {
         return null;
     }
@@ -61,23 +73,6 @@ $params = getParams();
 $requestMethod = getMethod();
 $requestBody = getBody();
 $token = getToken();
-
-//echo  $requestMethod ."   ". $token . "  ";
-//print_r($params);
-//print_r($requestURI);
-//print_r($requestBody);
-
-//$requestUri = $_SERVER['REQUEST_URI'];
-//$requestMethod = $_SERVER['REQUEST_METHOD'];
-//$requestBody = json_decode(file_get_contents('php://input'));
-//$headers = apache_request_headers();
-
-//echo $headers["Authorization"] . "   ";
-//echo $requestUri . "   ";
-//echo $requestMethod . "  ";
-//print_r($requestBody);
-
-//$token = $headers["Authorization"]
 
 if (isset($requestURI[1]) && isset($requestURI[2]))
 {

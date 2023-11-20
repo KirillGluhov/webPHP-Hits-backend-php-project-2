@@ -1,5 +1,9 @@
 <?php
 include_once "helpers/headers.php";
+require_once 'vendor/autoload.php';
+
+use Firebase\JWT\JWT;
+use Ramsey\Uuid\Uuid;
 
 global $Link;
 
@@ -233,9 +237,13 @@ function saveUser($body)
                 $birthDate = (isset($body["birthDate"]) ? $body["birthDate"] : null);
                 $phoneNumber = (isset($body["phoneNumber"]) ? $body["phoneNumber"] : null);
 
+                $dateOfBirthday = null;
 
-                $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
-                $dateOfBirthday = $dateTime->format("Y-m-d");
+                if ($birthDate !== null)
+                {
+                    $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
+                    $dateOfBirthday = $dateTime->format("Y-m-d");
+                }
 
                 $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
@@ -246,8 +254,28 @@ function saveUser($body)
                 }
                 else
                 {
-                    $token = bin2hex(random_bytes(64));
-                    $password = password_hash($password, PASSWORD_DEFAULT);
+                    $now = time();
+                    $currentTime = new DateTime();
+
+                    $uuid = Uuid::uuid4()->toString();
+
+                    
+                    $currentTime->modify('+1 hour');
+                    $expirationTime = $currentTime->format('Y-m-d H:i:s');
+
+
+                    $password = hash('sha256', $password . $uuid);
+                    $mainPartOfTokenJWT = array(
+                        "iss" => "Blog.API",
+                        "aud" => "Blog.API",
+                        "nbf" => $now,
+                        "iat" => $now,
+                        "exp" => $now + 3600,
+                        "nameId" => $uuid
+                    );
+
+                    $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+
                     $isUserExist = $Link->query("SELECT `Email` FROM user WHERE user.`Email` = '$email' ")->fetch_assoc();
 
                     if (isset($isUserExist["Email"]))
@@ -256,7 +284,23 @@ function saveUser($body)
                     }
                     else
                     {
-                        $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `День рождения`, `Телефон`) VALUES('$fullName', '$password', '$email', '$gender', '$dateOfBirthday', '$phoneNumber')");
+                        if ($dateOfBirthday !== null && $phoneNumber !== null)
+                        {
+                            $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `День рождения`, `Телефон`, `Идентификатор пользователя`) VALUES('$fullName', '$password', '$email', '$gender', '$dateOfBirthday', '$phoneNumber', '$uuid')");
+                        }
+                        else if ($phoneNumber !== null)
+                        {
+                            $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `Телефон`, `Идентификатор пользователя`) VALUES('$fullName', '$password', '$email', '$gender', '$phoneNumber', '$uuid')");
+                        }
+                        else if ($dateOfBirthday !== null)
+                        {
+                            $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `День рождения`, `Идентификатор пользователя`) VALUES('$fullName', '$password', '$email', '$gender', '$dateOfBirthday', '$uuid')");
+                        }
+                        else
+                        {
+                            $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `Идентификатор пользователя`) VALUES('$fullName', '$password', '$email', '$gender', '$uuid')");
+                        }
+                        
 
                         if (!$userInsertResult)
                         {
@@ -264,15 +308,10 @@ function saveUser($body)
                         }
                         else
                         {
-                            $userID = $Link->query("SELECT `Номер пользователя` FROM user WHERE user.`Email` = '$email'")->fetch_assoc();;
-                            $userId = $userID["Номер пользователя"];
+                            $userID = $Link->query("SELECT `Идентификатор пользователя` FROM user WHERE user.`Email` = '$email'")->fetch_assoc();;
+                            $userId = $userID["Идентификатор пользователя"];
 
-                            $currentTime = new DateTime();
-                            $currentTime->modify('+1 hour');
-
-                            $now = $currentTime->format('Y-m-d H:i:s');
-
-                            $tokenInsertResult = $Link->query("INSERT INTO token(`Значение токена`, `Номер пользователя`, `Действительно до`) VALUES('$token', '$userId', '$now')");
+                            $tokenInsertResult = $Link->query("INSERT INTO token(`Значение токена`, `Идентификатор пользователя`, `Действительно до`) VALUES('$token', '$userId', '$expirationTime')");
 
                             if (!$tokenInsertResult)
                             {
@@ -284,6 +323,8 @@ function saveUser($body)
                             }
                         }
                     }
+
+                    mysqli_close($Link);
                     
                 }
             }
@@ -306,17 +347,305 @@ function saveUser($body)
     }
 }
 
+function findUser($body)
+{
+    if (isset($body))
+    {
+        if (isset($body["email"]) && isset($body["password"]))
+        {
+            $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+            if (!$Link)
+            {
+                setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+                exit;
+            }
+            else
+            {
+                $email = $body["email"];
+                $password = $body["password"];
+
+                $isUserExist = $Link->query("SELECT `Идентификатор пользователя` FROM user WHERE user.`Email` = '$email' ")->fetch_assoc();
+
+                if (isset($isUserExist["Идентификатор пользователя"]))
+                {
+                    $userId = $isUserExist["Идентификатор пользователя"];
+                    $password = $password = hash('sha256', $password . $userId);
+
+                    $passwordFromDB = $Link->query("SELECT `Пароль` FROM user WHERE user.`Идентификатор пользователя` = '$userId'")->fetch_assoc();
+
+                    if (isset($passwordFromDB["Пароль"]))
+                    {
+                        if ($passwordFromDB["Пароль"] == $password)
+                        {
+                            $now = time();
+                            $currentTime = new DateTime();
+                            
+                            $currentTime->modify('+1 hour');
+                            $expirationTime = $currentTime->format('Y-m-d H:i:s');
+
+                            $mainPartOfTokenJWT = array(
+                                "iss" => "Blog.API",
+                                "aud" => "Blog.API",
+                                "nbf" => $now,
+                                "iat" => $now,
+                                "exp" => $now + 3600,
+                                "nameId" => $userId
+                            );
+        
+                            $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+
+                            $tokenInsertResult = $Link->query("INSERT INTO token(`Значение токена`, `Идентификатор пользователя`, `Действительно до`) VALUES('$token', '$userId', '$expirationTime')");
+
+                            if (!$tokenInsertResult)
+                            {
+                                setHTTPStatus("500", "Ошибка при вставке токена". $Link->error);
+                            }
+                            else
+                            {
+                                echo json_encode(['token' => $token]);
+                            }
+                        }
+                        else
+                        {
+                            setHTTPStatus("400", "Пароль неправильный");
+                        }
+                    }
+                    else
+                    {
+                        setHTTPStatus("500", "Почему-то у пользователя нет пароля");
+                    }
+                }
+                else
+                {
+                    setHTTPStatus("400", "Пользователя с электронной почтой " . $email . " не существует");
+                }
+            }
+
+            mysqli_close($Link);
+        }
+        else
+        {
+            setHTTPStatus("400", "Вы не передали минимальные требуемые данные для авторизации пользователя");
+        }
+    }
+    else
+    {
+        setHTTPStatus("400", "Вы не передали данные для авторизации пользователя");
+    }
+}
+
+function logoutUserWithThisToken($token)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+            if (isset($userWithThisToken["Идентификатор пользователя"]))
+            {
+                $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
+
+                if ($deleteOldTokens) 
+                {
+                    $deletedRows = $Link->affected_rows;
+                
+                    if ($deletedRows > 0) 
+                    {
+                        $isToken = $Link->query("SELECT `Значение токена` FROM token WHERE token.`Значение токена` = '$token'");
+
+                        if ($isToken->field_count > 0)
+                        {
+                            $deleteUserToken = $Link->query("DELETE FROM token WHERE `Значение токена` = '$token'");
+
+                            setHTTPStatus("200", "Пользователь успешно вышел");
+                        }
+                        else
+                        {
+                            setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                            
+                        }
+                    } 
+                    else 
+                    {
+                        $deleteUserToken = $Link->query("DELETE FROM token WHERE `Значение токена` = '$token'");
+                        
+                        setHTTPStatus("200", "Пользователь успешно вышел");
+                    }
+                }
+                else
+                {
+                    setHTTPStatus("500", "Запрос не дошёл к БД");
+                }
+            }
+            else
+            {
+                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+            }
+        }
+
+        mysqli_close($Link);
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы идентифицировать пользователя, из аккаунта которого вы собираетесь выйти");
+    }
+}
+
+function getProfile($token)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+            if (isset($userWithThisToken["Идентификатор пользователя"]))
+            {
+                $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
+
+                if ($deleteOldTokens) 
+                {
+                    $thisUser = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+                    if (isset($thisUser))
+                    {
+                        $idOfUser = $thisUser["Идентификатор пользователя"];
+                        $profile = $Link->query("SELECT * FROM user WHERE user.`Идентификатор пользователя` = '$idOfUser'")->fetch_assoc();
+
+                        $dateAndTime = explode(" ", $profile["Дата создания"]);
+
+                        $body = [
+                            "id" => $profile["Идентификатор пользователя"],
+                            "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1] . "Z",
+                            "fullName" => $profile["ФИО"],
+                            "birthDate" => (isset($profile["День рождения"]) ? ($profile["День рождения"] . "T00:00:00Z") : null),
+                            "gender" => $profile["Пол"],
+                            "email" => $profile["Email"],
+                            "phoneNumber" => (isset($profile["Телефон"]) ? $profile["Телефон"] : null)
+                        ];
+
+                        bodyWithRequest ("200", $body);
+                    }
+                    else
+                    {
+                        setHTTPStatus("401", "Токен не подходит ни одному пользователю. Возможно он устарел");
+                    }
+                }
+                else
+                {
+                    setHTTPStatus("500", "Запрос не дошёл к БД");
+                }
+
+            }
+            else
+            {
+                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+            }
+            //$deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
+
+            //print_r($userWithThisToken);
+        }
+
+        mysqli_close($Link);
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы предоставить вам профиль пользователя");
+    }
+}
+
 function registerUser($method, $uriList, $body)
 {
     if (isset($uriList[4]))
     {
-        setHTTPStatus("404", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+        setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
     }
     else
     {
         if ($method == "POST")
         {
             saveUser($body);
+        }
+        else
+        {
+            setHTTPStatus("400", "Не тот метод");
+        }
+    }
+}
+
+function loginUser($method, $uriList, $body)
+{
+    if (isset($uriList[4]))
+    {
+        setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+    }
+    else
+    {
+        if ($method == "POST")
+        {
+            findUser($body);
+        }
+        else
+        {
+            setHTTPStatus("400", "Не тот метод");
+        }
+    }
+}
+
+function logoutUser($method, $uriList, $token)
+{
+    if (isset($uriList[4]))
+    {
+        setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+    }
+    else
+    {
+        if ($method == "POST")
+        {
+            logoutUserWithThisToken($token);
+        }
+        else
+        {
+            setHTTPStatus("400", "Не тот метод");
+        }
+    }
+}
+
+function changeOrGiveProfile($method, $uriList, $token)
+{
+    if (isset($uriList[4]))
+    {
+        setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+    }
+    else
+    {
+        if ($method == "GET")
+        {
+            getProfile($token);
+        }
+        else if ($method == "PUT")
+        {
+            //
         }
         else
         {
@@ -334,13 +663,13 @@ function userRequestAnswer($method, $uriList, $body = null, $params = null, $tok
                 registerUser($method, $uriList, $body);
                 break;
             case "login":
-                # code...
+                loginUser($method, $uriList, $body);
                 break;
             case "logout":
-                # code...
+                logoutUser($method, $uriList, $token);
                 break;
             case "profile":
-                # code...
+                changeOrGiveProfile($method, $uriList, $token);
                 break;
             default:
                 setHTTPStatus("404", "Вы отправили запрос на несуществующую часть api");
@@ -353,7 +682,5 @@ function userRequestAnswer($method, $uriList, $body = null, $params = null, $tok
     }
 
 }
-
-//mysqli_close($Link);
 
 ?>
