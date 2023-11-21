@@ -57,6 +57,42 @@ function checkEmail($email)
     return 0;
 }
 
+function checkEmailExtended($email, $Link, $userId)
+{
+    if (gettype($email) == 'string' && filter_var($email, FILTER_VALIDATE_EMAIL))
+    {
+        $isFreeEmail = $Link->query("SELECT `Email` FROM user WHERE user.`Email` = '$email' AND user.`Идентификатор пользователя` <> '$userId'");
+
+        if ($isFreeEmail) 
+        {
+            $rowCount = $isFreeEmail->num_rows;
+        
+            if ($rowCount < 1) 
+            {
+                return 1;
+            } 
+            else 
+            {
+                setHTTPStatus("400", "Email " . $email . " занят");
+                return 4;
+            }
+        } 
+        else 
+        {
+            setHTTPStatus("500", "Ошибка при получении данных из БД");
+            return 3;
+        }
+        
+
+    }
+    else if (gettype($email) == 'string')
+    {
+        return 2;
+    }
+
+    return 0;
+}
+
 function checkGender($gender)
 {
     if (gettype($gender) == 'string' && ($gender == "Male" || $gender == "Female"))
@@ -73,37 +109,24 @@ function checkGender($gender)
 
 function checkBirthday($dateTimeString)
 {
-    $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $dateTimeString);
-    $minDate = DateTime::createFromFormat('Y-m-d', '1900-01-01');
-    $now = new DateTime();
-
-    if ($dateTime !== false)
+    if (preg_match('/\d{4}-\d{2}-\d{2}/', $dateTimeString, $matches)) 
     {
-        if ($dateTime->format("Y") >= $minDate->format("Y") &&
-        $dateTime->format("Y-m-d\TH:i:s\Z") <= $now->format("Y-m-d\TH:i:s\Z"))
+        $dateTime = DateTime::createFromFormat('Y-m-d', $matches[0]);
+        $minDate = DateTime::createFromFormat('Y-m-d', '1900-01-01');
+        $now = new DateTime();
+
+        if ($dateTime->format("Y") >= $minDate->format("Y") && $dateTime->format("Y-m-d") <= $now->format("Y-m-d"))
         {
             return 1;
         }
 
         return 0;
-    }
-    else
+    } 
+    else 
     {
-        $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $dateTimeString);
-
-        if ($dateTime !== false)
-        {
-            if ($dateTime->format("Y") >= $minDate->format("Y") &&
-             $dateTime->format("Y-m-d\TH:i:s\Z") <= $now->format("Y-m-d\TH:i:s\Z"))
-            {
-                return 1;
-            }
-        
-            return 0;
-        }
-
         return 2;
     }
+
 }
 
 function checkPhoneNumber($phoneNumber)
@@ -206,13 +229,12 @@ function saveUser($body)
             {
                 if ($flagBirthDate == 0)
                 {
-                    $errors["birthDate"] = ["Неправильный тип данных"];
+                    $errors["birthDate"] = ["Дата не можеет быть раньше 1900 года или позже текущего времени"];
                 }
                 else if ($flagBirthDate == 2)
                 {
-                    $errors["birthDate"] = ["Дата не можеет быть раньше 1900 года или позже текущего времени"];
+                    $errors["birthDate"] = ["Неправильный тип данных"];
                 }
-
             }
 
             if ($flagPhoneNumber != 1)
@@ -241,7 +263,7 @@ function saveUser($body)
 
                 if ($birthDate !== null)
                 {
-                    $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
+                    $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
                     $dateOfBirthday = $dateTime->format("Y-m-d");
                 }
 
@@ -284,6 +306,8 @@ function saveUser($body)
                     }
                     else
                     {
+                        $userInsertResult = null;
+
                         if ($dateOfBirthday !== null && $phoneNumber !== null)
                         {
                             $userInsertResult = $Link->query("INSERT INTO user(`ФИО`, `Пароль`, `Email`, `Пол`, `День рождения`, `Телефон`, `Идентификатор пользователя`) VALUES('$fullName', '$password', '$email', '$gender', '$dateOfBirthday', '$phoneNumber', '$uuid')");
@@ -302,7 +326,7 @@ function saveUser($body)
                         }
                         
 
-                        if (!$userInsertResult)
+                        if ($userInsertResult)
                         {
                             setHTTPStatus("500", "Ошибка при добавлении пользователя " .$Link->error);
                         }
@@ -338,7 +362,6 @@ function saveUser($body)
         {
             setHTTPStatus("400", "Вы не передали минимальные требуемые данные для регистрации пользователя");
         }
-       
         
     }
     else
@@ -448,49 +471,42 @@ function logoutUserWithThisToken($token)
         }
         else
         {
-            $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
 
-            if (isset($userWithThisToken["Идентификатор пользователя"]))
+            if ($deleteOldTokens)
             {
-                $userId = $userWithThisToken["Идентификатор пользователя"];
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
 
-                $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
-
-                if ($deleteOldTokens) 
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
                 {
-                    $deletedRows = $Link->affected_rows;
-                
-                    if ($deletedRows > 0) 
+                    $deleteUserToken = $Link->query("DELETE FROM token WHERE `Значение токена` = '$token'");
+                        
+                    if ($deleteUserToken)
                     {
-                        $isToken = $Link->query("SELECT `Значение токена` FROM token WHERE token.`Значение токена` = '$token'");
+                        $deletedRows = $Link->affected_rows;
 
-                        if ($isToken->field_count > 0)
+                        if ($deletedRows > 0)
                         {
-                            $deleteUserToken = $Link->query("DELETE FROM token WHERE `Значение токена` = '$token'");
-
                             setHTTPStatus("200", "Пользователь успешно вышел");
                         }
                         else
                         {
-                            setHTTPStatus("401", "Токен не подходит ни одному пользователю");
-                            
+                            setHTTPStatus("500", "Почему-то выйти не удалось. Возможно ошибка со стороны БД. Вот текст ошибки: " . $Link->error);
                         }
-                    } 
-                    else 
+                    }
+                    else
                     {
-                        $deleteUserToken = $Link->query("DELETE FROM token WHERE `Значение токена` = '$token'");
-                        
-                        setHTTPStatus("200", "Пользователь успешно вышел");
+                        setHTTPStatus("500", "Запрос не дошёл к БД");
                     }
                 }
                 else
                 {
-                    setHTTPStatus("500", "Запрос не дошёл к БД");
+                    setHTTPStatus("401", "Токен не подходит ни одному пользователю");
                 }
             }
             else
             {
-                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                setHTTPStatus("500", "Запрос не дошёл к БД");
             }
         }
 
@@ -515,55 +531,42 @@ function getProfile($token)
         }
         else
         {
-            $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
 
-            if (isset($userWithThisToken["Идентификатор пользователя"]))
+            if ($deleteOldTokens)
             {
-                $userId = $userWithThisToken["Идентификатор пользователя"];
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
 
-                $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
-
-                if ($deleteOldTokens) 
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
                 {
-                    $thisUser = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+                    $userId = $userWithThisToken["Идентификатор пользователя"];
+                    $profile = $Link->query("SELECT * FROM user WHERE user.`Идентификатор пользователя` = '$userId'")->fetch_assoc();
 
-                    if (isset($thisUser))
-                    {
-                        $idOfUser = $thisUser["Идентификатор пользователя"];
-                        $profile = $Link->query("SELECT * FROM user WHERE user.`Идентификатор пользователя` = '$idOfUser'")->fetch_assoc();
+                    $dateAndTime = explode(" ", $profile["Дата создания"]);
 
-                        $dateAndTime = explode(" ", $profile["Дата создания"]);
+                    $body = [
+                        "id" => $profile["Идентификатор пользователя"],
+                        "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1] . "." . time(),
+                        "fullName" => $profile["ФИО"],
+                        "birthDate" => (isset($profile["День рождения"]) ? ($profile["День рождения"]) : null),
+                        "gender" => $profile["Пол"],
+                        "email" => $profile["Email"],
+                        "phoneNumber" => (isset($profile["Телефон"]) ? $profile["Телефон"] : null)
+                    ];
 
-                        $body = [
-                            "id" => $profile["Идентификатор пользователя"],
-                            "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1] . "Z",
-                            "fullName" => $profile["ФИО"],
-                            "birthDate" => (isset($profile["День рождения"]) ? ($profile["День рождения"] . "T00:00:00Z") : null),
-                            "gender" => $profile["Пол"],
-                            "email" => $profile["Email"],
-                            "phoneNumber" => (isset($profile["Телефон"]) ? $profile["Телефон"] : null)
-                        ];
+                    bodyWithRequest ("200", $body);
 
-                        bodyWithRequest ("200", $body);
-                    }
-                    else
-                    {
-                        setHTTPStatus("401", "Токен не подходит ни одному пользователю. Возможно он устарел");
-                    }
+
                 }
                 else
                 {
-                    setHTTPStatus("500", "Запрос не дошёл к БД");
+                    setHTTPStatus("401", "Токен не подходит ни одному пользователю");
                 }
-
             }
             else
             {
                 setHTTPStatus("401", "Токен не подходит ни одному пользователю");
             }
-            //$deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW() AND `Идентификатор пользователя` = '$userId'");
-
-            //print_r($userWithThisToken);
         }
 
         mysqli_close($Link);
@@ -571,6 +574,180 @@ function getProfile($token)
     else
     {
         setHTTPStatus("401", "Вы не передали данные для того, чтобы предоставить вам профиль пользователя");
+    }
+}
+
+function changeUserProfile($token, $body)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
+
+            if ($deleteOldTokens)
+            {
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
+                {
+                    $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                    if (isset($body["email"]) && isset($body["fullName"]) && isset($body["gender"]))
+                    {
+                        $email = $body["email"];
+                        $fullName = $body["fullName"];
+                        $gender = $body["gender"];
+
+                        $birthDate = null;
+                        $phoneNumber = null;
+
+                        $flagIsCorrectEmail = checkEmailExtended($email, $Link, $userId);
+                        $flagIsCorrectFullName = checkName($fullName);
+                        $flagIsCorrectGender = checkGender($gender);
+
+                        $flagIsCorrectBirthDate = 1;
+                        $flagIsCorrectPhoneNumber = 1;
+
+                        if (isset($body["birthDate"]))
+                        {
+                            $birthDate = $body["birthDate"];
+                            $flagIsCorrectBirthDate = checkBirthday($birthDate);
+                        }
+
+                        if (isset($body["phoneNumber"]))
+                        {
+                            $phoneNumber = $body["phoneNumber"];
+                            $flagIsCorrectPhoneNumber = checkPhoneNumber($phoneNumber);
+                        }
+
+                        $errors = array();
+
+                        if ($flagIsCorrectEmail * $flagIsCorrectFullName * $flagIsCorrectGender * $flagIsCorrectBirthDate * $flagIsCorrectPhoneNumber == 1)
+                        {
+                            $userInsertResult = null;
+
+                            if ($birthDate != null && $phoneNumber != null)
+                            {
+                                $updateProfileData = $Link->query("UPDATE user SET `Email` = '$email', `ФИО` = '$fullName', `Пол` = '$gender', `День рождения` = '$birthDate', `Телефон` = '$phoneNumber' WHERE `Идентификатор пользователя` = '$userId'");
+                            }
+                            else if ($birthDate != null)
+                            {
+                                $updateProfileData = $Link->query("UPDATE user SET `Email` = '$email', `ФИО` = '$fullName', `Пол` = '$gender', `День рождения` = '$birthDate' WHERE `Идентификатор пользователя` = '$userId'");
+                            }
+                            else if ($phoneNumber != null)
+                            {
+                                $updateProfileData = $Link->query("UPDATE user SET `Email` = '$email', `ФИО` = '$fullName', `Пол` = '$gender', `Телефон` = '$phoneNumber' WHERE `Идентификатор пользователя` = '$userId'");
+                            }
+                            else
+                            {
+                                $updateProfileData = $Link->query("UPDATE user SET `Email` = '$email', `ФИО` = '$fullName', `Пол` = '$gender' WHERE `Идентификатор пользователя` = '$userId'");
+                            }
+
+                            if ($userInsertResult)
+                            {
+                                setHTTPStatus("500", "Ошибка при изменении данных пользователя " .$Link->error);
+                            }
+                            else
+                            {
+                                setHTTPStatus("200", null);
+                            }
+                        }
+                        else
+                        {
+                            if ($flagIsCorrectEmail != 1)
+                            {
+                                if ($flagIsCorrectEmail == 0)
+                                {
+                                    $errors["email"] = ["Неправильный тип данных"];
+                                }
+                                else if ($flagIsCorrectEmail == 2)
+                                {
+                                    $errors["email"] = ["Электронная почта не может быть такой"];
+                                }
+                            }
+
+                            if ($flagIsCorrectFullName != 1)
+                            {
+                                if ($flagIsCorrectFullName == 0)
+                                {
+                                    $errors["fullName"] = ["Неправильный тип данных"];
+                                }
+                                else if ($flagIsCorrectFullName == 2)
+                                {
+                                    $errors["fullName"] = ["Длина должна быть не меньше 1"];
+                                }
+                            }
+
+                            if ($flagIsCorrectGender != 1)
+                            {
+                                if ($flagIsCorrectGender == 0)
+                                {
+                                    $errors["gender"] = ["Неправильный тип данных"];
+                                }
+                                else if ($flagIsCorrectGender == 2)
+                                {
+                                    $errors["gender"] = ["Нет такого пола"];
+                                }
+                            }
+
+                            if ($flagIsCorrectBirthDate != 1)
+                            {
+                                if ($flagIsCorrectBirthDate == 0)
+                                {
+                                    $errors["birthDate"] = ["Дата не можеет быть раньше 1900 года или позже текущего времени"];
+                                }
+                                else if ($flagIsCorrectBirthDate == 2)
+                                {
+                                    $errors["birthDate"] = ["Неправильный тип данных"];
+                                }
+                            }
+
+                            if ($flagIsCorrectPhoneNumber != 1)
+                            {
+                                if ($flagIsCorrectPhoneNumber == 0)
+                                {
+                                    $errors["phoneNumber"] = ["Неправильный тип данных"];
+                                }
+                                else if ($flagIsCorrectPhoneNumber == 2)
+                                {
+                                    $errors["phoneNumber"] = ["Неправильный формат номера телефона"];
+                                }
+
+                            }
+
+                            setHTTPStatus("400", "Неккоректные данные пользователя", $errors);
+                        }
+
+                    }
+                    else
+                    {
+                        setHTTPStatus("400", "Для изменения профиля пользователя необходимо передать ФИО, электронную почту и пол");
+                    }
+                }
+                else
+                {
+                    setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                }
+            }
+            else
+            {
+                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+            }
+        }
+
+        mysqli_close($Link);
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы изменить профиль пользователя");
     }
 }
 
@@ -631,7 +808,7 @@ function logoutUser($method, $uriList, $token)
     }
 }
 
-function changeOrGiveProfile($method, $uriList, $token)
+function changeOrGiveProfile($method, $uriList, $token, $body=null)
 {
     if (isset($uriList[4]))
     {
@@ -645,7 +822,7 @@ function changeOrGiveProfile($method, $uriList, $token)
         }
         else if ($method == "PUT")
         {
-            //
+            changeUserProfile($token, $body);
         }
         else
         {
@@ -669,7 +846,7 @@ function userRequestAnswer($method, $uriList, $body = null, $params = null, $tok
                 logoutUser($method, $uriList, $token);
                 break;
             case "profile":
-                changeOrGiveProfile($method, $uriList, $token);
+                changeOrGiveProfile($method, $uriList, $token, $body);
                 break;
             default:
                 setHTTPStatus("404", "Вы отправили запрос на несуществующую часть api");
