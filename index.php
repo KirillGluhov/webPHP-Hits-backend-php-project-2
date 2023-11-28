@@ -1,7 +1,9 @@
 <?php
 include_once "helpers/headers.php";
+
 include_once "paths/user.php";
 include_once "paths/address.php";
+include_once "paths/tag.php";
 function getURI()
 {
     $url = $_SERVER['REQUEST_URI'];
@@ -98,7 +100,7 @@ if (isset($requestURI[1]) && isset($requestURI[2]))
                 # code...
                 break;
             case 'tag':
-                # code...
+                allTags($requestMethod, $requestURI);
                 break;
             case 'account':
                 userRequestAnswer($requestMethod, $requestURI, $requestBody, $params, $token);

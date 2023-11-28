@@ -14,7 +14,7 @@ function levelName($levelNumber)
         case "3":
             return "Microdistrict";
         case "4":
-            return "RuralSettlement";
+            return "RuralUrbanSettlement";
         case "5":
             return "City";
         case "6":
@@ -23,10 +23,24 @@ function levelName($levelNumber)
             return "ElementOfPlanningStructure";
         case "8":
             return "ElementOfRoadNetwork";
+        case "9":
+            return "Land";
+        case "10":
+            return "Building";
+        case "11":
+            return "Room";
+        case "12":
+            return "RoomInRooms";
+        case "13":
+            return "AutonomousRegionLevel";
+        case "14":
+            return "IntracityLevel";
         case "15":
             return "AdditionalTerritoriesLevel";
         case "16":
             return "LevelOfObjectsInAdditionalTerritories";
+        case "17":
+            return "CarPlace";
         default:
             return "UnknownLevel";
     }
@@ -51,10 +65,24 @@ function levelNameText($levelNumber)
             return "Элемент планировочной структуры";
         case "8":
             return "Элемент улично-дорожной сети";
+        case "9":
+            return "Земля";
+        case "10":
+            return "Здание (строение)";
+        case "11":
+            return "Комната";
+        case "12":
+            return "Комната в комнатах";
+        case "13":
+            return "Автономный регион";
+        case "14":
+            return "Внутригородской уровень";
         case "15":
             return "Уровень дополнительных территорий (устаревшее)";
         case "16":
             return "Уровень объектов на дополнительных территориях (устаревшее)";
+        case "17":
+            return "Машиноместо";
         default:
             return "Неизвестный уровень адреса";
     }
