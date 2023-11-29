@@ -129,6 +129,14 @@ function checkBirthday($dateTimeString)
 
 }
 
+function getBirthDay($stringWithDate)
+{
+    if (preg_match('/\d{4}-\d{2}-\d{2}/', $stringWithDate, $matches))
+    {
+        return $matches[0];
+    }
+}
+
 function checkPhoneNumber($phoneNumber)
 {
     if (preg_match('/^\\+7 \\(\\d{3}\\) \\d{3}-\\d{2}-\\d{2}$/', $phoneNumber) && gettype($phoneNumber) == 'string') 
@@ -263,7 +271,7 @@ function saveUser($body)
 
                 if ($birthDate !== null)
                 {
-                    $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
+                    $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
                     $dateOfBirthday = $dateTime->format("Y-m-d");
                 }
 
@@ -326,7 +334,7 @@ function saveUser($body)
                         }
                         
 
-                        if ($userInsertResult)
+                        if (!$userInsertResult)
                         {
                             setHTTPStatus("500", "Ошибка при добавлении пользователя " .$Link->error);
                         }
@@ -546,7 +554,7 @@ function getProfile($token)
 
                     $body = [
                         "id" => $profile["Идентификатор пользователя"],
-                        "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1] . "." . time(),
+                        "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1],
                         "fullName" => $profile["ФИО"],
                         "birthDate" => (isset($profile["День рождения"]) ? ($profile["День рождения"]) : null),
                         "gender" => $profile["Пол"],
@@ -560,7 +568,7 @@ function getProfile($token)
                 }
                 else
                 {
-                    setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                    setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
                 }
             }
             else
@@ -618,7 +626,7 @@ function changeUserProfile($token, $body)
 
                         if (isset($body["birthDate"]))
                         {
-                            $birthDate = $body["birthDate"];
+                            $birthDate = getBirthDay($body["birthDate"]);
                             $flagIsCorrectBirthDate = checkBirthday($birthDate);
                         }
 
@@ -657,7 +665,7 @@ function changeUserProfile($token, $body)
                             }
                             else
                             {
-                                setHTTPStatus("200", null);
+                                bodyWithRequest("200", null);
                             }
                         }
                         else

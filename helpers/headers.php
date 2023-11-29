@@ -60,7 +60,7 @@ function setHTTPStatus($status = null, $message = null, $errors = null)
     }
 }
 
-function bodyWithRequest ($status = null, $body = null)
+function bodyWithRequest ($status = null, $body = null, $isNullIsNull = null)
 {
     switch ($status) 
     {
@@ -93,6 +93,11 @@ function bodyWithRequest ($status = null, $body = null)
     if (!is_null($body))
     {
         echo json_encode($body);
+    }
+
+    if ($isNullIsNull == 1)
+    {
+        echo $body;
     }
 }
 

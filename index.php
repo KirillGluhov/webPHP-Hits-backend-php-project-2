@@ -4,6 +4,7 @@ include_once "helpers/headers.php";
 include_once "paths/user.php";
 include_once "paths/address.php";
 include_once "paths/tag.php";
+include_once "paths/community.php";
 function getURI()
 {
     $url = $_SERVER['REQUEST_URI'];
@@ -94,7 +95,7 @@ if (isset($requestURI[1]) && isset($requestURI[2]))
                 # code...
                 break;
             case 'community':
-                # code...
+                communityEndPoints($requestMethod, $requestURI, $requestBody, $params, $token);
                 break;
             case 'post':
                 # code...

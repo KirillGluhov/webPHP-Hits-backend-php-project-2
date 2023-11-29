@@ -24,14 +24,13 @@ function giveTags()
             $tags->free();
 
             $body = [];
-            //print_r($tagsEntryFromDB);
 
             foreach ($tagsEntryFromDB as $row)
             {
                 $body[] = array(
                     "name"=> $row["Название"],
                     "id"=> $row["id"],
-                    "createTime"=> $row["Время создания"]
+                    "createTime"=> str_replace(" ", "T", $row["Время создания"])
                 );
             }
 
