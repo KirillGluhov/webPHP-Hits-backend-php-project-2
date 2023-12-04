@@ -6,29 +6,29 @@ function setHTTPStatus($status = null, $message = null, $errors = null)
     {
         default:
         case '200':
-            $status = "HTTP/1.0 200 OK";
+            header("HTTP/1.0 200 OK");
             break;
         case "400":
-            $status = "HTTP/1.0 400 Bad Request";
+            header("HTTP/1.0 400 Bad Request");
             break;
         case "401":
-            $status = "HTTP/1.0 401 Unauthorized";
+            header("HTTP/1.0 401 Unauthorized");
             break;
         case "403":
-            $status = "HTTP/1.0 403 Forbidden";
+            header("HTTP/1.0 403 Forbidden");
             break;
         case "404":
-            $status = "HTTP/1.0 404 Not Found";
+            header("HTTP/1.0 404 Not Found");
             break;
         case "409":
-            $status = "HTTP/1.0 409 Conflict";
+            header("HTTP/1.0 409 Conflict");
             break;
         case "500":
-            $status = "HTTP/1.0 500 Iternal Server Error";
+            header("HTTP/1.0 500 Iternal Server Error");
             break;
     }
 
-    header($status);
+    
 
     if (!is_null($message) && !is_null($errors) && !is_null($status))
     {
@@ -99,6 +99,39 @@ function bodyWithRequest ($status = null, $body = null, $isNullIsNull = null)
     {
         echo $body;
     }
+}
+
+function setHTTPMessage($status = null, $statusNumber = null, $message = null)
+{
+    switch ($statusNumber) 
+    {
+        default:
+        case '200':
+            $statusNumber = "HTTP/1.0 200 OK";
+            break;
+        case "400":
+            $statusNumber = "HTTP/1.0 400 Bad Request";
+            break;
+        case "401":
+            $statusNumber = "HTTP/1.0 401 Unauthorized";
+            break;
+        case "403":
+            $statusNumber = "HTTP/1.0 403 Forbidden";
+            break;
+        case "404":
+            $statusNumber = "HTTP/1.0 404 Not Found";
+            break;
+        case "409":
+            $statusNumber = "HTTP/1.0 409 Conflict";
+            break;
+        case "500":
+            $statusNumber = "HTTP/1.0 500 Iternal Server Error";
+            break;
+    }
+
+    header($statusNumber);
+
+    echo json_encode(['message' => $message, "status" => $status]);
 }
 
 ?>

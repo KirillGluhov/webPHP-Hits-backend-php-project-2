@@ -568,12 +568,12 @@ function getProfile($token)
                 }
                 else
                 {
-                    setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
+                    setHTTPStatus("401", "Токен не подходит ни одному пользователю");
                 }
             }
             else
             {
-                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
             }
         }
 
