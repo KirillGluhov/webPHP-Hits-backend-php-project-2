@@ -3,11 +3,66 @@ require_once 'vendor/autoload.php';
 
 use Ramsey\Uuid\Uuid;
 
+function verifySorting($sorting)
+{
+    if (gettype($sorting) == "string")
+    {
+        switch ($sorting)
+        {
+            case 'CreateAsc':
+                return 1;
+            case 'CreateDesc':
+                return 1;
+            case 'LikeAsc':
+                return 1;
+            case 'LikeDesc':
+                return 1;
+            default:
+                return 0;
+        }
+    }
+    else
+    {
+        return 2;
+    }
+}
+
+function verifyBoolean($value)
+{
+    if (gettype($value) == 'boolean')
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 function verifyTitle($title)
 {
     if (gettype($title) == "string")
     {
         if (strlen($title) >= 5 && strlen($title) <= 1000)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else
+    {
+        return 2;
+    }
+}
+
+function verifyNatural($value)
+{
+    if (gettype($value) == "integer")
+    {
+        if ($value >= 1 && $value <= 2**31-1)
         {
             return 1;
         }
@@ -45,7 +100,7 @@ function verifyReadingTime($readingTime)
 {
     if (gettype($readingTime) == "integer")
     {
-        if ($readingTime >= 0)
+        if ($readingTime >= 0 && $readingTime <= 2**31-1)
         {
             return 1;
         }
@@ -113,10 +168,52 @@ function verifyAddress($addressId, $Link)
     }
 }
 
+function verifyTag($tags, $Link)
+{
+    if (gettype($tags) == "array")
+    {
+        if (empty($tags)) 
+        {
+            return 1;
+        }
+
+        $counter = 0;
+        $errors = [];
+
+        foreach ($tags as $value)
+        {
+            $isExist = $Link->query("SELECT id FROM tag WHERE tag.id = '$value';")->fetch_assoc();
+
+            if ($isExist)
+            {
+                $counter++;
+            }
+            else
+            {
+                $errors[] = $value;
+            }
+        }
+
+        if ($counter == count($tags))
+        {
+            return 1;
+        }
+        else
+        {
+            return $errors;
+        }
+    }
+    else
+    {
+        return 2;
+    }
+}
+
 function verifyTags($tags, $Link)
 {
     if (gettype($tags) == "array" || gettype($tags) == "object")
     {
+
         $counter = 0;
         $errors = [];
 
@@ -848,7 +945,657 @@ function getPostInfo($postId, $token)
 
 function getAllPosts($params, $token)
 {
-    ////
+    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+    if (!$Link)
+    {
+        setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+        exit;
+    }
+    else
+    {
+        $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
+
+        if ($deleteOldTokens)
+        {
+            $userId = null;
+
+            $tags = [];
+            $author = null;
+            $min = null;
+            $max = null;
+            $sorting = null;
+            $onlyMyCommunities = false;
+            $page = null;
+            $size = null;
+
+            if ($params != null)
+            {
+                for ($i = 0; $i < count($params); $i++)
+                {
+                    $nameAndValue = explode("=", $params[$i]);
+
+                    switch ($nameAndValue[0]) {
+                        case 'tags':
+                            $tags[] = $nameAndValue[1];
+                            break;
+                        case 'author':
+                            $author = urldecode($nameAndValue[1]);
+                            break;
+                        case 'min':
+                            if ($min == null)
+                            {
+                                $min = intval($nameAndValue[1]);
+                            }
+                            break;
+                        case 'max':
+                            if ($max == null)
+                            {
+                                $max = intval($nameAndValue[1]);
+                            }
+                            break;
+                        case 'sorting':
+                            if ($sorting == null)
+                            {
+                                $sorting = $nameAndValue[1];
+                            }
+                            break;
+                        case 'onlyMyCommunities':
+                            if ($onlyMyCommunities == false)
+                            {
+                                $onlyMyCommunities = ($nameAndValue[1] == "true") ? true : false;
+                            }
+                            break;
+                        case 'page':
+                            if ($page == null)
+                            {
+                                $page = intval($nameAndValue[1]);
+                            }
+                            break;
+                        case 'size':
+                            if ($size == null)
+                            {
+                                $size = intval($nameAndValue[1]);
+                            }
+                            break;
+                        default:
+                            break;
+                    }
+                }
+            }
+            else
+            {
+                $sorting = "CreateDesc";
+            }
+
+            $errors = [];
+
+            $flagForTags = 1;
+            $flagForMin = 1;
+            $flagForMax = 1;
+            $flagForSorting = 1;
+            $flagOnlyMyCommunities = 1;
+            $flagPage = 1;
+            $flagSize = 1;
+
+            if ($min != null)
+            {
+                $flagForMin = verifyReadingTime($min);
+
+                if ($flagForMin != 1)
+                {
+                    if ($flagForMin == 0)
+                    {
+                        $errors["min"] = ["Диапазон значений от 0 до 2**31-1"];
+                    }
+                    else if ($flagForMin == 2)
+                    {
+                        $errors["min"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if ($max != null)
+            {
+                $flagForMax = verifyReadingTime($max);
+
+                if ($flagForMax != 1)
+                {
+                    if ($flagForMax == 0)
+                    {
+                        $errors["max"] = ["Диапазон значений от 0 до 2**31-1"];
+                    }
+                    else if ($flagForMax == 2)
+                    {
+                        $errors["max"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if (count($tags) > 0)
+            {
+                $flagForTags = verifyTag($tags, $Link);
+
+                if ($flagForTags != 1)
+                {
+                    if ($flagForTags == 2)
+                    {
+                        $errors["tags"] = ["Неправильный тип данных"];
+                    }
+                    else
+                    {
+                        $errors["tags"] = [];
+
+                        for ($i = 0; $i < count($flagForTags); $i++)
+                        {
+                            $errors["tags"][] = ["Тег с id = ". $flagForTags[$i]. " не существует"];
+                        }
+                    }
+                }
+            }
+
+            if ($sorting != null)
+            {
+                $flagForSorting = verifySorting($sorting);
+
+                if ($flagForSorting != 1)
+                {
+                    if ($flagForSorting == 0)
+                    {
+                        $errors["sorting"] = ["Такой сортировки нет"];
+                    }
+                    else if ($flagForSorting == 2)
+                    {
+                        $errors["sorting"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if ($onlyMyCommunities != null)
+            {
+                $flagOnlyMyCommunities = verifyBoolean($onlyMyCommunities);
+
+                if ($flagOnlyMyCommunities != 1)
+                {
+                    if ($flagOnlyMyCommunities == 0)
+                    {
+                        $errors["onlyMyCommunities"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if ($page != null)
+            {
+                $flagPage = verifyNatural($page);
+
+                if ($flagPage != 1)
+                {
+                    if ($flagPage == 0)
+                    {
+                        $errors["page"] = ["Диапазон значений от 1 до 2**31-1"];
+                    }
+                    else if ($flagPage == 2)
+                    {
+                        $errors["page"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if ($size != null)
+            {
+                $flagSize = verifyNatural($size);
+
+                if ($flagSize != 1)
+                {
+                    if ($flagSize == 0)
+                    {
+                        $errors["size"] = ["Диапазон значений от 1 до 2**31-1"];
+                    }
+                    else if ($flagSize == 2)
+                    {
+                        $errors["size"] = ["Неправильный тип данных"];
+                    }
+                }
+            }
+
+            if (gettype($flagForTags) == "array" || gettype($flagForTags) == "object")
+            {
+                if (count($flagForTags) == 1)
+                {
+                    setHTTPStatus("404", $errors["tags"][0][0]);
+                }
+                else
+                {
+                    $idOfTags = "" . $flagForTags[0];
+
+                    for ($i = 1; $i < count($flagForTags); $i++)
+                    {
+                        $idOfTags = $idOfTags . ", " . $flagForTags[$i];
+
+                    }
+
+                    setHTTPStatus("404", "Теги с id = " . $idOfTags . " не существуют");
+                }
+                
+            }
+            else if ($flagForTags * $flagForMin * $flagForMax * $flagForSorting * $flagOnlyMyCommunities * $flagPage * $flagSize == 1)
+            {
+                $posts = [];
+
+                if (isset($token))
+                {
+                    $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+                    $stringForQuery = null;
+
+                    if (isset($userWithThisToken["Идентификатор пользователя"]))
+                    {
+                        $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                        if ($onlyMyCommunities == false && count($tags) == 0)
+                        {
+                            $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, c.`Название` FROM post p
+                            LEFT JOIN community c ON p.communityId = c.id
+                            LEFT JOIN `user-community` uc ON c.id = uc.communityId AND uc.userId = '$userId'
+                            LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                            WHERE (p.communityId IS NULL OR c.Закрытость = 0 OR (c.Закрытость = 1 AND (uc.Роль = 'Subscriber' OR uc.Роль = 'Administrator')));";
+                        }
+                        else if ($onlyMyCommunities == true && count($tags) == 0)
+                        {
+                            $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, c.`Название` FROM post p
+                            LEFT JOIN community c ON p.communityId = c.id
+                            LEFT JOIN `user-community` uc ON c.id = uc.communityId AND uc.userId = '$userId'
+                            LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                            WHERE (p.communityId IS NULL OR uc.userId = '$userId');";
+                        }
+                        else if (count($tags) > 0)
+                        {
+                            if ($onlyMyCommunities == true)
+                            {
+                                $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, `tag-post`.tagId, c.`Название` FROM post p
+                                LEFT JOIN community c ON p.communityId = c.id
+                                LEFT JOIN `user-community` uc ON c.id = uc.communityId AND uc.userId = '$userId'
+                                LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                                LEFT JOIN `tag-post` ON `tag-post`.postId = p.id
+                                WHERE (p.communityId IS NULL OR uc.userId = '$userId')";
+                            }
+                            else if ($onlyMyCommunities == false)
+                            {
+                                $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, `tag-post`.tagId, c.`Название` FROM post p
+                                LEFT JOIN community c ON p.communityId = c.id
+                                LEFT JOIN `user-community` uc ON c.id = uc.communityId AND uc.userId = '$userId'
+                                LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                                LEFT JOIN `tag-post` ON `tag-post`.postId = p.id
+                                WHERE (p.communityId IS NULL OR c.Закрытость = 0 OR
+                                (c.Закрытость = 1 AND (uc.Роль = 'Subscriber' OR uc.Роль = 'Administrator')))"; 
+                            }
+
+                            $additionalString = " AND ( ";
+
+                            for ($i = 0; $i < count($tags); $i++)
+                            {
+                                $additionalString = $additionalString . "`tag-post`.tagId = " . '"' . $tags[$i] . '"' . " OR ";
+                            }
+
+                            $additionalString = substr($additionalString, 0, -3);
+                            $additionalString = $additionalString . " );";
+
+                            $stringForQuery = $stringForQuery . $additionalString;
+                        }
+
+                        if ($author != null)
+                        {
+                            $stringForQuery = substr($stringForQuery, 0, -1);
+                            $stringForQuery = $stringForQuery . " AND `user`.`ФИО` LIKE '%" . $author . "%';";
+                        }
+
+                        if ($min != null)
+                        {
+                            $stringForQuery = substr($stringForQuery, 0, -1);
+                            $stringForQuery = $stringForQuery . " AND p.`Время чтения` >= " . $min . ";";
+                        }
+
+                        if ($max != null)
+                        {
+                            $stringForQuery = substr($stringForQuery, 0, -1);
+                            $stringForQuery = $stringForQuery . " AND p.`Время чтения` <= " . $max . ";";
+                        }
+
+                        if ($sorting != null)
+                        {
+                            $stringForQuery = substr($stringForQuery, 0, -1);
+                            $stringForQuery = $stringForQuery . " ORDER BY ";
+
+                            switch ($sorting) 
+                            {
+                                case 'CreateAsc':
+                                    $stringForQuery = $stringForQuery . "p.`Время создания` ASC;";
+                                    break;
+                                case 'CreateDesc':
+                                    $stringForQuery = $stringForQuery . "p.`Время создания` DESC;";
+                                    break;
+                                case 'LikeAsc':
+                                    $stringForQuery = $stringForQuery . "p.`Число лайков` ASC;";
+                                    break;
+                                case 'LikeDesc':
+                                    $stringForQuery = $stringForQuery . "p.`Число лайков` DESC;";
+                                    break;
+                            }
+                        }
+
+                        $postIsExistForUser = $Link->query($stringForQuery);
+
+                        while ($row = $postIsExistForUser->fetch_assoc()) 
+                        {
+                            $posts[] = $row;
+                        }
+                        $postIsExistForUser->free();
+                    }
+                    else
+                    {
+                        setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                        exit;
+                    }
+                }
+                else
+                {
+
+                    if ($onlyMyCommunities == false && count($tags) == 0)
+                    {
+                        $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, c.`Название` FROM post p
+                        LEFT JOIN community c ON p.communityId = c.id
+                        LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                        WHERE (p.communityId IS NULL OR c.Закрытость = 0);";
+                    }
+                    else if ($onlyMyCommunities == true && count($tags) == 0)
+                    {
+                        $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, c.`Название` FROM post p
+                        LEFT JOIN community c ON p.communityId = c.id
+                        LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                        WHERE (p.communityId IS NULL);";
+                    }
+                    else if (count($tags) > 0)
+                    {
+                        if ($onlyMyCommunities == true)
+                        {
+                            $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, `tag-post`.tagId, c.`Название` FROM post p
+                            LEFT JOIN community c ON p.communityId = c.id
+                            LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                            LEFT JOIN `tag-post` ON `tag-post`.postId = p.id
+                            WHERE (p.communityId IS NULL)";
+                        }
+                        else if ($onlyMyCommunities == false)
+                        {
+                            $stringForQuery = "SELECT DISTINCT p.*, `user`.`ФИО`, `tag-post`.tagId, c.`Название` FROM post p
+                            LEFT JOIN community c ON p.communityId = c.id
+                            LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = p.authorId
+                            LEFT JOIN `tag-post` ON `tag-post`.postId = p.id
+                            WHERE (p.communityId IS NULL OR c.Закрытость = 0)"; 
+                        }
+
+                        $additionalString = " AND ( ";
+
+                        for ($i = 0; $i < count($tags); $i++)
+                        {
+                            $additionalString = $additionalString . "`tag-post`.tagId = " . '"' . $tags[$i] . '"' . " OR ";
+                        }
+
+                        $additionalString = substr($additionalString, 0, -3);
+                        $additionalString = $additionalString . " );";
+
+                        $stringForQuery = $stringForQuery . $additionalString;
+                    }
+
+                    if ($author != null)
+                    {
+                        $stringForQuery = substr($stringForQuery, 0, -1);
+                        $stringForQuery = $stringForQuery . " AND `user`.`ФИО` LIKE '%" . $author . "%';";
+                    }
+
+                    if ($min != null)
+                    {
+                        $stringForQuery = substr($stringForQuery, 0, -1);
+                        $stringForQuery = $stringForQuery . " AND p.`Время чтения` >= " . $min . ";";
+                    }
+
+                    if ($max != null)
+                    {
+                        $stringForQuery = substr($stringForQuery, 0, -1);
+                        $stringForQuery = $stringForQuery . " AND p.`Время чтения` <= " . $max . ";";
+                    }
+
+                    if ($sorting != null)
+                    {
+                        $stringForQuery = substr($stringForQuery, 0, -1);
+                        $stringForQuery = $stringForQuery . " ORDER BY ";
+
+                        switch ($sorting) 
+                        {
+                            case 'CreateAsc':
+                                $stringForQuery = $stringForQuery . "p.`Время создания` ASC;";
+                                break;
+                            case 'CreateDesc':
+                                $stringForQuery = $stringForQuery . "p.`Время создания` DESC;";
+                                break;
+                            case 'LikeAsc':
+                                $stringForQuery = $stringForQuery . "p.`Число лайков` ASC;";
+                                break;
+                            case 'LikeDesc':
+                                $stringForQuery = $stringForQuery . "p.`Число лайков` DESC;";
+                                break;
+                        }
+                    }
+
+                    $postIsExistForUser = $Link->query($stringForQuery);
+
+                    while ($row = $postIsExistForUser->fetch_assoc()) 
+                    {
+                        $posts[] = $row;
+                    }
+                    $postIsExistForUser->free();
+                }
+
+                $postsWithoutRepeats = [];
+                $uniqueIds = [];
+
+                foreach($posts as $post)
+                {
+                    if (!in_array($post["id"], $uniqueIds))
+                    {
+                        $uniqueIds[] = $post["id"];
+                        $postsWithoutRepeats[] = $post;
+                    }
+                }
+
+                if ($page == null)
+                {
+                    $page = 1;
+                }
+
+                if ($size == null)
+                {
+                    $size = 5;
+                }
+
+                $count = ceil(count($postsWithoutRepeats) / $size);
+
+                $body = [];
+                $body["pagination"] = array(
+                    "size" => $size,
+                    "count" => $count,
+                    "current" => $page
+                );
+
+                $body["posts"] = [];
+
+                if ($page * $size > count($postsWithoutRepeats))
+                {
+                    if (($page-1) * $size <= count($postsWithoutRepeats))
+                    {
+                        for ($i = $size * ($page - 1); $i < count($postsWithoutRepeats); $i++)
+                        {
+                            $hasLike = null;
+                            $idOfPost = $postsWithoutRepeats[$i]["id"];
+
+                            if ($userId == null)
+                            {
+                                $hasLike = false;
+                            }
+                            else
+                            {
+                                
+
+                                $isHasLike = $Link->query("SELECT * FROM `like` WHERE postId = '$idOfPost' AND userId = '$userId'")->fetch_assoc();
+
+                                if ($isHasLike)
+                                {
+                                    $hasLike = true;
+                                }
+                                else
+                                {
+                                    $hasLike = false;
+                                }
+                            }
+
+                            $tagList = $Link->query("SELECT * FROM `tag-post`
+                            LEFT JOIN tag ON tag.id = tagId
+                            WHERE postId = '$idOfPost';");
+
+                            $someTags = [];
+
+                            if ($tagList)
+                            {
+                                while ($row = $tagList->fetch_assoc()) 
+                                {
+                                    $someTags[] = array(
+                                        "id" => $row["id"],
+                                        "createTime" => $row["Время создания"],
+                                        "name" => $row["Название"]
+                                    );
+                                }
+                                $tagList->free();
+                                
+                            }
+                            else
+                            {
+                                setHTTPStatus("500", "Ошибка приполучении тегов поста " .$Link->error);
+                                exit;
+                            }
+
+                            $body["posts"][] = array(
+                                "title" => $postsWithoutRepeats[$i]["Заголовок"],
+                                "description" => $postsWithoutRepeats[$i]["Описание"],
+                                "readingTime" => intval($postsWithoutRepeats[$i]["Время чтения"]),
+                                "image" => $postsWithoutRepeats[$i]["Изображение"],
+                                "authorId" => $postsWithoutRepeats[$i]["authorId"],
+                                "author" => $postsWithoutRepeats[$i]["ФИО"],
+                                "communityId" => $postsWithoutRepeats[$i]["communityId"],
+                                "communityName" => $postsWithoutRepeats[$i]["Название"],
+                                "addressId" => $postsWithoutRepeats[$i]["addressId"],
+                                "likes" => intval($postsWithoutRepeats[$i]["Число лайков"]),
+                                "hasLike" => $hasLike,
+                                "commentsCount" => intval($postsWithoutRepeats[$i]["Число комментариев"]),
+                                "tags" => $someTags,
+                                "id" => $postsWithoutRepeats[$i]["id"],
+                                "createTime" => str_replace(" ", "T", $postsWithoutRepeats[$i]["Время создания"])
+                            );
+                        }
+                    }
+                    else
+                    {
+                        setHTTPMessage("Error", "400", "Такой страницы при данных параметрах сортировки и фильтрации нет");
+                        exit;
+                    }
+                }
+                else
+                {
+                    for ($i = $size * ($page - 1); $i < $page * $size; $i++)
+                    {
+                        $hasLike = null;
+
+                        $idOfPost = $postsWithoutRepeats[$i]["id"];
+
+                        if ($userId == null)
+                        {
+                            $hasLike = false;
+                        }
+                        else
+                        {
+                            
+
+                            $isHasLike = $Link->query("SELECT * FROM `like` WHERE postId = '$idOfPost' AND userId = '$userId'")->fetch_assoc();
+
+                            if ($isHasLike)
+                            {
+                                $hasLike = true;
+                            }
+                            else
+                            {
+                                $hasLike = false;
+                            }
+                        }
+
+                        $tagList = $Link->query("SELECT * FROM `tag-post`
+                        LEFT JOIN tag ON tag.id = tagId
+                        WHERE postId = '$idOfPost';");
+
+                        $someTags = [];
+
+                        if ($tagList)
+                        {
+                            while ($row = $tagList->fetch_assoc()) 
+                            {
+                                $someTags[] = array(
+                                    "id" => $row["id"],
+                                    "createTime" => $row["Время создания"],
+                                    "name" => $row["Название"]
+                                );
+                            }
+                            $tagList->free();
+                            
+                        }
+                        else
+                        {
+                            setHTTPStatus("500", "Ошибка приполучении тегов поста " .$Link->error);
+                            exit;
+                        }
+
+                        $body["posts"][] = array(
+                            "title" => $postsWithoutRepeats[$i]["Заголовок"],
+                            "description" => $postsWithoutRepeats[$i]["Описание"],
+                            "readingTime" => intval($postsWithoutRepeats[$i]["Время чтения"]),
+                            "image" => $postsWithoutRepeats[$i]["Изображение"],
+                            "authorId" => $postsWithoutRepeats[$i]["authorId"],
+                            "author" => $postsWithoutRepeats[$i]["ФИО"],
+                            "communityId" => $postsWithoutRepeats[$i]["communityId"],
+                            "communityName" => $postsWithoutRepeats[$i]["Название"],
+                            "addressId" => $postsWithoutRepeats[$i]["addressId"],
+                            "likes" => intval($postsWithoutRepeats[$i]["Число лайков"]),
+                            "hasLike" => $hasLike,
+                            "commentsCount" => intval($postsWithoutRepeats[$i]["Число комментариев"]),
+                            "tags" => $someTags,
+                            "id" => $postsWithoutRepeats[$i]["id"],
+                            "createTime" => str_replace(" ", "T", $postsWithoutRepeats[$i]["Время создания"])
+                        );
+                    }
+                }
+
+                ////
+                bodyWithRequest("200", $body);
+
+            }
+            else
+            {
+                setHTTPStatus("400", "Неккоректные данные поста", $errors);
+            }
+            
+        }
+        else
+        {
+            setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
+        }
+
+        mysqli_close($Link);
+    }
 }
 
 function createOrGetPosts($method, $body, $params, $token)

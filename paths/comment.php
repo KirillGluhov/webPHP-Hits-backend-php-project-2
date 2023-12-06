@@ -189,7 +189,7 @@ function deleteComment($token, $commentId)
     }
 }
 
-function getAllCommentsFromLowLevels($parentIdComment)
+function getAllCommentsFromLowLevels($parentIdComment, $token)
 {
     $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
@@ -200,54 +200,100 @@ function getAllCommentsFromLowLevels($parentIdComment)
     }
     else
     {
-        $isExistComment = $Link->query("SELECT * FROM `comment` WHERE id = '$parentIdComment';")->fetch_assoc();
+        $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
 
-        if ($isExistComment)
+        if ($deleteOldTokens)
         {
-            $isRootComment = $Link->query("SELECT * FROM comment_hierarchy WHERE commentId = '$parentIdComment' AND parentId IS NULL;")->fetch_assoc();
+            $userId = null;
 
-            if ($isRootComment)
+            $isExistComment = $Link->query("SELECT * FROM `comment` WHERE id = '$parentIdComment';")->fetch_assoc();
+
+            if ($isExistComment)
             {
                 $postId = $isExistComment["postId"];
+                $postIsExistForUser = null;
 
-                $allCommentsFromPost = $Link->query("SELECT comment_hierarchy.`Путь`, c.*, `user`.`ФИО` FROM `comment` c
-                LEFT JOIN comment_hierarchy ON comment_hierarchy.commentId = c.id
-                LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = c.authorId
-                WHERE postid = '$postId' ORDER BY c.createTime;");
-
-                $body = [];
-
-                while ($row = $allCommentsFromPost->fetch_assoc()) 
+                if (isset($token))
                 {
-                    $allPartsOfPath = explode(".", $row["Путь"]);
+                    $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
 
-                    if (count($allPartsOfPath) > 1 && $allPartsOfPath[0] == $parentIdComment)
+                    if (isset($userWithThisToken["Идентификатор пользователя"]))
                     {
-                        $body[] = array(
-                            "content" => $row["Содержимое"],
-                            "modifiedDate" => $row["modifiedDate"],
-                            "deleteDate" => $row["deleteDate"],
-                            "authorId" => $row["authorId"],
-                            "author" => $row["ФИО"],
-                            "subComments" => intval($row["subcomments"]),
-                            "id" => $row["id"],
-                            "createTime" => $row["createTime"]
-                        );
+                        $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                        $postIsExistForUser = $Link->query("SELECT DISTINCT p.* FROM post p
+                        LEFT JOIN community c ON p.communityId = c.id
+                        LEFT JOIN `user-community` uc ON c.id = uc.communityId AND uc.userId = '$userId'
+                        WHERE (p.communityId IS NULL OR c.Закрытость = 0 OR (c.Закрытость = 1 AND (uc.Роль = 'Subscriber' OR uc.Роль = 'Administrator'))) AND p.id = '$postId';")->fetch_assoc();
+                    }
+                    else
+                    {
+                        setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                        exit;
                     }
                 }
-                $allCommentsFromPost->free();
+                else
+                {
+                    $postIsExistForUser = $Link->query("SELECT DISTINCT p.* FROM post p
+                        LEFT JOIN community c ON p.communityId = c.id
+                        WHERE (p.communityId IS NULL OR c.Закрытость = 0) AND p.id = '$postId';")->fetch_assoc();
+                }
 
-                bodyWithRequest ("200", $body);
+                if ($postIsExistForUser)
+                {
+                    $isRootComment = $Link->query("SELECT * FROM comment_hierarchy WHERE commentId = '$parentIdComment' AND parentId IS NULL;")->fetch_assoc();
+
+                    if ($isRootComment)
+                    {
+                        $allCommentsFromPost = $Link->query("SELECT comment_hierarchy.`Путь`, c.*, `user`.`ФИО` FROM `comment` c
+                        LEFT JOIN comment_hierarchy ON comment_hierarchy.commentId = c.id
+                        LEFT JOIN `user` ON `user`.`Идентификатор пользователя` = c.authorId
+                        WHERE postid = '$postId' ORDER BY c.createTime;");
+
+                        $body = [];
+
+                        while ($row = $allCommentsFromPost->fetch_assoc()) 
+                        {
+                            $allPartsOfPath = explode(".", $row["Путь"]);
+
+                            if (count($allPartsOfPath) > 1 && $allPartsOfPath[0] == $parentIdComment)
+                            {
+                                $body[] = array(
+                                    "content" => $row["Содержимое"],
+                                    "modifiedDate" => $row["modifiedDate"],
+                                    "deleteDate" => $row["deleteDate"],
+                                    "authorId" => $row["authorId"],
+                                    "author" => $row["ФИО"],
+                                    "subComments" => intval($row["subcomments"]),
+                                    "id" => $row["id"],
+                                    "createTime" => $row["createTime"]
+                                );
+                            }
+                        }
+                        $allCommentsFromPost->free();
+
+                        bodyWithRequest ("200", $body);
+                    }
+                    else
+                    {
+                        setHTTPMessage("Error", "400", "Комментарий с id = " . $parentIdComment . " не корневой");
+                    }
+                }
+                else
+                {
+                    setHTTPStatus("403", "Вы не можете посмотреть дочерние комментарии под этим постом");
+                }
             }
             else
             {
-                setHTTPMessage("Error", "400", "Комментарий с id = " . $parentIdComment . " не корневой");
+                setHTTPStatus("404", "Такого комментария нет");
             }
         }
         else
         {
-            setHTTPStatus("404", "Такого комментария нет");
+            setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
         }
+
         mysqli_close($Link);
     }
 }
@@ -284,7 +330,7 @@ function commentEndpoints($method, $uriList, $body, $token)
                 {
                     if ($method == "GET")
                     {
-                        getAllCommentsFromLowLevels($uriList[3]);
+                        getAllCommentsFromLowLevels($uriList[3], $token);
                     }
                     else
                     {
