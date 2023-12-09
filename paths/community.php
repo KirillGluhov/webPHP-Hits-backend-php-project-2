@@ -4,6 +4,18 @@ require_once 'vendor/autoload.php';
 
 use Ramsey\Uuid\Uuid;
 
+function verifyBool($value)
+{
+    if (gettype($value) == 'boolean')
+    {
+        return 1;
+    }
+    else
+    {
+        return 0;
+    }
+}
+
 function isValidUuid($uuid)
 {
     $pattern = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i';
@@ -55,6 +67,25 @@ function getAllCommunities()
             exit;
         }
 
+    }
+}
+
+function verifyText($text)
+{
+    if (gettype($text) == "string")
+    {
+        if (strlen($text) > 0)
+        {
+            return 1;
+        }
+        else
+        {
+            return 0;
+        }
+    }
+    else
+    {
+        return 2;
     }
 }
 
@@ -1310,6 +1341,340 @@ function getPost($idCommunity, $params, $token)
     }
 }
 
+function createCommunity($body, $token)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
+
+            if ($deleteOldTokens)
+            {
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
+                {
+                    $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                    if (isset($body["name"]) && isset($body["isClosed"]))
+                    {
+                        $name = $body["name"];
+                        $isClosed = $body["isClosed"];
+                        $description = null;
+
+                        $isUniqueName = $Link->query("SELECT * FROM community WHERE `Название` = '$name';")->fetch_assoc();
+
+                        if ($isUniqueName)
+                        {
+                            setHTTPStatus("400", "Сообщество с таким названием существует");
+                        }
+                        else
+                        {
+                            $flagName = verifyText($name);
+                            $flagIsClosed = verifyBool($isClosed);
+                            $flagDescription = 1;
+
+                            if (isset($body["description"]))
+                            {
+                                $description = $body["description"];
+                                $flagDescription = verifyText($description);
+                            }
+
+                            $errors = array();
+
+                            if ($flagName != 1)
+                            {
+                                if ($flagName == 0)
+                                {
+                                    $errors["name"] = ["Длина названия сообщества должна быть не менее 1 символа"];
+                                }
+                                else if ($flagName == 2)
+                                {
+                                    $errors["name"] = ["Неправильный тип данных"];
+                                }
+                            }
+
+                            if ($flagDescription != 1)
+                            {
+                                if ($flagDescription == 0)
+                                {
+                                    $errors["description"] = ["При указании описания необходимо, чтобы его длина была больше 1, либо не указываёте описание вовсе"];
+                                }
+                                else if ($flagDescription == 2)
+                                {
+                                    $errors["description"] = ["Неправильный тип данных"];
+                                }
+                            }
+
+                            if ($flagIsClosed != 1)
+                            {
+                                if ($flagIsClosed == 0)
+                                {
+                                    $errors["isClosed"] = ["Неправильный тип данных"];
+                                }
+                            }
+
+                            if ($flagName * $flagDescription * $flagIsClosed == 1)
+                            {
+                                $createCommunity = null;
+                                $isClosed = $isClosed ? 1 : 0;
+                                $uuid = Uuid::uuid4()->toString();
+
+                                if ($description != null)
+                                {
+                                    $createCommunity = $Link->query("INSERT INTO community(`id`, `Название`, `Описание`, `Закрытость`) VALUES('$uuid', '$name', '$description', '$isClosed')");
+                                }
+                                else
+                                {
+                                    $createCommunity = $Link->query("INSERT INTO community(`id`, `Название`, `Закрытость`) VALUES('$uuid', '$name', '$isClosed')");
+                                }
+
+                                if ($createCommunity)
+                                {
+                                    $makeUserAdmin = $Link->query("INSERT INTO `user-community`(`userId`, `communityId`, `Роль`) VALUES('$userId', '$uuid', 'Administrator')");
+
+                                    if ($makeUserAdmin)
+                                    {
+                                        echo $uuid;
+                                    }
+                                    else
+                                    {
+                                        setHTTPStatus("500", "Ошибка при назначении пользователя администратором сообщества " .$Link->error);
+                                    }
+                                }
+                                else
+                                {
+                                    setHTTPStatus("500", "Ошибка при создании сообщества " .$Link->error);
+                                }
+                            }
+                            else
+                            {
+                                setHTTPStatus("400", "Неккоректные данные создаваемого сообщества", $errors);
+                            }
+                        }
+                    }
+                    else
+                    {
+                        setHTTPStatus("400", "Вы не передали минимальные требуемые данные для создания сообщества");
+                    }
+
+                }
+                else
+                {
+                    setHTTPStatus("404", "Токен не подходит ни одному пользователю");
+                }
+            }
+            else
+            {
+                setHTTPStatus("500", "Ошибка при удалении токенов " .$Link->error);
+            }
+        }
+
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы идентифицировать пользователя");
+    }
+}
+
+function createNewAdmin($communityId, $idOfNewAdmin, $token)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
+
+            if ($deleteOldTokens)
+            {
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
+                {
+                    $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                    $isExistCommunity = $Link->query("SELECT * FROM community WHERE id = '$communityId'")->fetch_assoc();
+                    $isExistUser = $Link->query("SELECT * FROM user WHERE `Идентификатор пользователя` = '$idOfNewAdmin'")->fetch_assoc();
+
+                    if ($isExistCommunity && $isExistUser)
+                    {
+                        $peopleIsAdmin = $Link->query("SELECT * FROM `user-community` WHERE userId = '$userId' AND communityId = '$communityId' AND `Роль` = 'Administrator';")->fetch_assoc();
+
+                        if ($peopleIsAdmin)
+                        {
+                            if ($idOfNewAdmin != $userId)
+                            {
+                                $isUserNotAdmin = $Link->query("SELECT * FROM `user-community` WHERE userId = '$idOfNewAdmin' AND communityId = '$communityId' AND `Роль` = 'Administrator';")->fetch_assoc();
+
+                                if ($isUserNotAdmin)
+                                {
+                                    setHTTPStatus("400", "Человек, которого вы собираетесь назначить администратором уже администратор");
+                                    exit;
+                                }
+                                else
+                                {
+                                    $isUserSubscriber = $Link->query("SELECT * FROM `user-community` WHERE userId = '$idOfNewAdmin' AND communityId = '$communityId' AND `Роль` = 'Subscriber';")->fetch_assoc();
+
+                                    if ($isUserSubscriber)
+                                    {
+                                        $addAdmin = $Link->query("INSERT INTO `user-community`(`userId`, `communityId`, `Роль`) VALUES('$idOfNewAdmin', '$communityId', 'Administrator')");
+
+                                        if ($addAdmin)
+                                        {
+                                            bodyWithRequest("200", null);
+                                        }
+                                        else
+                                        {
+                                            setHTTPStatus("500", "Ошибка при назначении пользователя подписчиком " .$Link->error);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        setHTTPStatus("400", "Пользователь должен являться подписчиком сообщества");
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                setHTTPStatus("400", "Человек самого себя назначить администратором не может");
+                            }
+                        }
+                        else
+                        {
+                            setHTTPStatus("403", "Только администраторы сообщества могут назначать подписчиков новыми администраторами");
+                        }
+                    }
+                    else if ($isExistUser)
+                    {
+                        setHTTPStatus("404", "Сообщество не существует");
+                    }
+                    else if ($isExistCommunity)
+                    {
+                        setHTTPStatus("404", "Пользователь, которого вы собираетесь назначить новым администратором не существует");
+                    }
+                    else
+                    {
+                        setHTTPStatus("404", "Нет ни сообщества, ни пользователя с такими идентификаторами");
+                    }
+                }
+            }
+            else
+            {
+                setHTTPStatus("500", "Ошибка при удалении токенов " .$Link->error);
+            }
+        }
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы идентифицировать пользователя");
+    }
+}
+
+function deleteAdmin($communityId, $idOfNewAdmin, $token)
+{
+    if (isset($token))
+    {
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+
+        if (!$Link)
+        {
+            setHTTPStatus("500", "Ошибка соединения с БД " .mysqli_connect_error());
+            exit;
+        }
+        else
+        {
+            $deleteOldTokens = $Link->query("DELETE FROM token WHERE `Действительно до` < NOW()");
+
+            if ($deleteOldTokens)
+            {
+                $userWithThisToken = $Link->query("SELECT `Идентификатор пользователя` FROM token WHERE token.`Значение токена` = '$token'")->fetch_assoc();
+
+                if (isset($userWithThisToken["Идентификатор пользователя"]))
+                {
+                    $userId = $userWithThisToken["Идентификатор пользователя"];
+
+                    $isExistCommunity = $Link->query("SELECT * FROM community WHERE id = '$communityId'")->fetch_assoc();
+                    $isExistUser = $Link->query("SELECT * FROM user WHERE `Идентификатор пользователя` = '$idOfNewAdmin'")->fetch_assoc();
+
+                    if ($isExistCommunity && $isExistUser)
+                    {
+                        $peopleIsAdmin = $Link->query("SELECT * FROM `user-community` WHERE userId = '$userId' AND communityId = '$communityId' AND `Роль` = 'Administrator';")->fetch_assoc();
+
+                        if ($peopleIsAdmin)
+                        {
+                            if ($idOfNewAdmin != $userId)
+                            {
+                                $isUserAdmin = $Link->query("SELECT * FROM `user-community` WHERE userId = '$idOfNewAdmin' AND communityId = '$communityId' AND `Роль` = 'Administrator';")->fetch_assoc();
+
+                                if ($isUserAdmin)
+                                {
+                                    $deleteUser = $Link->query("DELETE FROM `user-community` WHERE userId = '$idOfNewAdmin' AND communityId = '$communityId' AND `Роль` = 'Administrator';");
+
+                                    if ($deleteUser)
+                                    {
+                                        bodyWithRequest("200", null);
+                                    }
+                                    else
+                                    {
+                                        setHTTPStatus("500", "Ошибка при удалении администратора" .$Link->error);
+                                    }
+                                }
+                                else
+                                {
+                                    setHTTPStatus("400", "Человек, которого вы собираетесь удалить из администраторов, не администратор");
+                                }
+                            }
+                            else
+                            {
+                                setHTTPStatus("400", "Человек не может удалить себя из администраторов");
+                            }
+                        }
+                        else
+                        {
+                            setHTTPStatus("403", "Только администраторы сообщества могут удалить администратора");
+                        }
+                    }
+                    else if ($isExistUser)
+                    {
+                        setHTTPStatus("404", "Сообщество не существует");
+                    }
+                    else if ($isExistCommunity)
+                    {
+                        setHTTPStatus("404", "Пользователь, которого вы собираетесь удалить среди администраторов не существует");
+                    }
+                    else
+                    {
+                        setHTTPStatus("404", "Нет ни сообщества, ни пользователя с такими идентификаторами");
+                    }
+                }
+            }
+            else
+            {
+                setHTTPStatus("500", "Ошибка при удалении токенов " .$Link->error);
+            }
+        }
+    }
+    else
+    {
+        setHTTPStatus("401", "Вы не передали данные для того, чтобы идентифицировать пользователя");
+    }
+}
+
 function checkMethodForGetAllCommunities($method)
 {
     if ($method == "GET") 
@@ -1333,6 +1698,25 @@ function getListCommunitiesOfThisUser($method, $uriList, $token)
         if ($method == "GET")
         {
             communitiesOfUser($token);
+        }
+        else
+        {
+            setHTTPStatus("400", "Не тот метод");
+        }
+    }
+}
+
+function createNewCommunity($method, $uriList, $body, $token)
+{
+    if (isset($uriList[4]))
+    {
+        setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+    }
+    else
+    {
+        if ($method == "POST")
+        {
+            createCommunity($body, $token);
         }
         else
         {
@@ -1405,34 +1789,88 @@ function createOrGetPost($method, $idCommunity, $body, $params, $token)
     }
 }
 
-function checkForNextPartOfRequest($method, $uriList, $body, $params, $token)
+function deleteOrCreateAdmin($method, $uriList, $token)
 {
-    if (isset($uriList[4]))
+    if (isset($uriList[5]))
     {
-        if (isset($uriList[5]))
+        if (isset($uriList[6]))
         {
             setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
         }
         else
         {
-            switch ($uriList[4]) 
+            if ($method == "POST")
             {
-                case "post":
-                    createOrGetPost($method, $uriList[3], $body, $params, $token);
-                    break;
-                case "role":
-                    checkMethodForRoleEndPoint($method, $uriList[3], $token);
-                    break;
-                case "subscribe":
-                    checkSubscribe($method, $uriList[3], $token);
-                    break;
-                case "unsubscribe":
-                    checkUnsubscribe($method, $uriList[3], $token);
-                    break;
-                default:
-                    setHTTPStatus("400", "Такого эндпоинта нет");
-                    break;
+                createNewAdmin($uriList[3], $uriList[5], $token);
             }
+            else if ($method == "DELETE")
+            {
+                deleteAdmin($uriList[3], $uriList[5], $token);
+            }
+            else
+            {
+                setHTTPStatus("400", "Не тот метод");
+            }
+        }
+    }
+    else
+    {
+        setHTTPStatus("404", "Вы отправили запрос на несуществующую часть api");
+    }
+}
+
+function checkForNextPartOfRequest($method, $uriList, $body, $params, $token)
+{
+    if (isset($uriList[4]))
+    {
+        switch ($uriList[4]) 
+        {
+            case "post":
+                if (isset($uriList[5]))
+                {
+                    setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+                }
+                else
+                {
+                    createOrGetPost($method, $uriList[3], $body, $params, $token);
+                }
+                break;
+            case "role":
+                if (isset($uriList[5]))
+                {
+                    setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+                }
+                else
+                {
+                    checkMethodForRoleEndPoint($method, $uriList[3], $token);
+                }
+                break;
+            case "subscribe":
+                if (isset($uriList[5]))
+                {
+                    setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+                }
+                else
+                {
+                    checkSubscribe($method, $uriList[3], $token);
+                }
+                break;
+            case "unsubscribe":
+                if (isset($uriList[5]))
+                {
+                    setHTTPStatus("400", "Вы написали слишком длинный запрос (есть лишняя часть запроса)");
+                }
+                else
+                {
+                    checkUnsubscribe($method, $uriList[3], $token);
+                }
+                break;
+            case "admin":
+                deleteOrCreateAdmin($method, $uriList, $token);
+                break;
+            default:
+                setHTTPStatus("400", "Такого эндпоинта нет");
+                break;
         }
     }
     else
@@ -1448,6 +1886,9 @@ function communityEndPoints($method, $uriList, $body, $params, $token)
         switch ($uriList[3]) {
             case "my":
                 getListCommunitiesOfThisUser($method, $uriList, $token);
+                break;
+            case "create":
+                createNewCommunity($method, $uriList, $body, $token);
                 break;
             default:
                 checkForNextPartOfRequest($method, $uriList, $body, $params, $token);
