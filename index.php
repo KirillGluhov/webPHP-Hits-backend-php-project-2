@@ -1,6 +1,9 @@
 <?php
 include_once "helpers/headers.php";
+
 include_once "paths/user.php";
+include_once "paths/address.php";
+include_once "paths/tag.php";
 function getURI()
 {
     $url = $_SERVER['REQUEST_URI'];
@@ -74,6 +77,7 @@ $requestMethod = getMethod();
 $requestBody = getBody();
 $token = getToken();
 
+
 if (isset($requestURI[1]) && isset($requestURI[2]))
 {
     if ($requestURI[1] == "api")
@@ -81,7 +85,7 @@ if (isset($requestURI[1]) && isset($requestURI[2]))
         switch ($requestURI[2]) 
         {
             case 'address':
-                # code...
+                addressRequestAnswer($requestMethod, $requestURI, $params);
                 break;
             case 'author':
                 # code...
@@ -96,7 +100,7 @@ if (isset($requestURI[1]) && isset($requestURI[2]))
                 # code...
                 break;
             case 'tag':
-                # code...
+                allTags($requestMethod, $requestURI);
                 break;
             case 'account':
                 userRequestAnswer($requestMethod, $requestURI, $requestBody, $params, $token);
