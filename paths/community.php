@@ -24,7 +24,9 @@ function isValidUuid($uuid)
 
 function getAllCommunities()
 {
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link) 
     {
@@ -93,7 +95,9 @@ function communitiesOfUser($token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -192,7 +196,9 @@ function infoAboutCommunity($uuid)
 {
     if (isValidUuid($uuid))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -261,7 +267,9 @@ function getRoleOfUserInCommunity($id, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -349,7 +357,9 @@ function subscribeUserToCommunity($id, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -412,7 +422,9 @@ function unsubscribeUserToCommunity($id, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -475,7 +487,9 @@ function postPost($idCommunity, $body, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -726,7 +740,9 @@ function postPost($idCommunity, $body, $token)
 
 function getPost($idCommunity, $params, $token)
 {
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link)
     {
@@ -1345,7 +1361,9 @@ function createCommunity($body, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -1489,7 +1507,9 @@ function createNewAdmin($communityId, $idOfNewAdmin, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -1589,7 +1609,9 @@ function deleteAdmin($communityId, $idOfNewAdmin, $token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
