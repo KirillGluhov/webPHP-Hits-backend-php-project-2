@@ -4,6 +4,10 @@ include_once "helpers/headers.php";
 include_once "paths/user.php";
 include_once "paths/address.php";
 include_once "paths/tag.php";
+include_once "paths/community.php";
+include_once "paths/post.php";
+include_once "paths/author.php";
+include_once "paths/comment.php";
 function getURI()
 {
     $url = $_SERVER['REQUEST_URI'];
@@ -88,16 +92,16 @@ if (isset($requestURI[1]) && isset($requestURI[2]))
                 addressRequestAnswer($requestMethod, $requestURI, $params);
                 break;
             case 'author':
-                # code...
+                authorEndpoints($requestMethod, $requestURI);
                 break;
             case 'comment':
-                # code...
+                commentEndpoints($requestMethod, $requestURI, $requestBody, $token);
                 break;
             case 'community':
-                # code...
+                communityEndPoints($requestMethod, $requestURI, $requestBody, $params, $token);
                 break;
             case 'post':
-                # code...
+                posts($requestMethod, $requestURI, $requestBody, $params, $token);
                 break;
             case 'tag':
                 allTags($requestMethod, $requestURI);
