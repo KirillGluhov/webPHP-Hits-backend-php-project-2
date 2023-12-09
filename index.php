@@ -1,5 +1,6 @@
 <?php
 include_once "helpers/headers.php";
+include_once "../localhost/config.php";
 
 include_once "paths/user.php";
 include_once "paths/address.php";
@@ -8,6 +9,10 @@ include_once "paths/community.php";
 include_once "paths/post.php";
 include_once "paths/author.php";
 include_once "paths/comment.php";
+
+include_once "helpers/inspall.php";
+
+createGlobals();
 function getURI()
 {
     $url = $_SERVER['REQUEST_URI'];
@@ -80,6 +85,8 @@ $params = getParams();
 $requestMethod = getMethod();
 $requestBody = getBody();
 $token = getToken();
+
+startCreatingDBIfNotExists();
 
 
 if (isset($requestURI[1]) && isset($requestURI[2]))
