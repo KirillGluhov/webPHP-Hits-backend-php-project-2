@@ -2,7 +2,9 @@
 
 function giveTags()
 {
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link) 
     {
@@ -24,14 +26,13 @@ function giveTags()
             $tags->free();
 
             $body = [];
-            //print_r($tagsEntryFromDB);
 
             foreach ($tagsEntryFromDB as $row)
             {
                 $body[] = array(
                     "name"=> $row["Название"],
                     "id"=> $row["id"],
-                    "createTime"=> $row["Время создания"]
+                    "createTime"=> str_replace(" ", "T", $row["Время создания"])
                 );
             }
 

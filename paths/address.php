@@ -111,7 +111,7 @@ function makeNameForBuilding($building)
     return $building["housenum"] . typeForAddnum($building["addtype1"]) . $building["addnum1"] . typeForAddnum($building["addtype2"]) . $building["addnum2"];
 }
 
-function functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body)
+function functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body, $Link)
 {
     if ($chooseAdressesWithoutBuildings)
     {
@@ -170,7 +170,9 @@ function functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuilding
 
 function findElementsOnOneLevelWithThisParams($params)
 {
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link)
     {
@@ -220,7 +222,7 @@ function findElementsOnOneLevelWithThisParams($params)
                 WHERE administration_hierarchy.parentobjid = '$parentId' AND houses.`Актуальность` = 1 AND houses.housenum LIKE '$parentnameWithProcents'
                 ORDER BY housenum, addnum1, addnum2;");
 
-                functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body);
+                functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body, $Link);
             }
             else if (isset($parentId))
             {
@@ -236,7 +238,7 @@ function findElementsOnOneLevelWithThisParams($params)
                 ORDER BY housenum, addnum1, addnum2
                 LIMIT 10;");
 
-                functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body);
+                functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuildings, $body, $Link);
             }
             else if (isset($partOfName))
             {
@@ -323,7 +325,9 @@ function findElementsOnOneLevelWithThisParams($params)
 function createChainFromAdresses($params)
 {
 
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link)
     {

@@ -129,6 +129,14 @@ function checkBirthday($dateTimeString)
 
 }
 
+function getBirthDay($stringWithDate)
+{
+    if (preg_match('/\d{4}-\d{2}-\d{2}/', $stringWithDate, $matches))
+    {
+        return $matches[0];
+    }
+}
+
 function checkPhoneNumber($phoneNumber)
 {
     if (preg_match('/^\\+7 \\(\\d{3}\\) \\d{3}-\\d{2}-\\d{2}$/', $phoneNumber) && gettype($phoneNumber) == 'string') 
@@ -263,11 +271,39 @@ function saveUser($body)
 
                 if ($birthDate !== null)
                 {
-                    $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
+                    $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
+
+                    if (!$dateTime)
+                    {
+                        $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $birthDate);
+
+                        if (!$dateTime)
+                        {
+                            $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u', $birthDate);
+
+                            if (!$dateTime)
+                            {
+                                $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s', $birthDate);
+
+                                if (!$dateTime)
+                                {
+                                    $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $birthDate);
+
+                                    if (!$dateTime)
+                                    {
+                                        $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     $dateOfBirthday = $dateTime->format("Y-m-d");
                 }
 
-                $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+                global $config;
+
+                $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
                 if (!$Link)
                 {
@@ -296,7 +332,7 @@ function saveUser($body)
                         "nameId" => $uuid
                     );
 
-                    $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+                    $token = JWT::encode($mainPartOfTokenJWT, $config['secret_key'], 'HS256');
 
                     $isUserExist = $Link->query("SELECT `Email` FROM user WHERE user.`Email` = '$email' ")->fetch_assoc();
 
@@ -326,7 +362,7 @@ function saveUser($body)
                         }
                         
 
-                        if ($userInsertResult)
+                        if (!$userInsertResult)
                         {
                             setHTTPStatus("500", "Ошибка при добавлении пользователя " .$Link->error);
                         }
@@ -376,7 +412,9 @@ function findUser($body)
     {
         if (isset($body["email"]) && isset($body["password"]))
         {
-            $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+            global $config;
+
+            $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
             if (!$Link)
             {
@@ -416,7 +454,7 @@ function findUser($body)
                                 "nameId" => $userId
                             );
         
-                            $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+                            $token = JWT::encode($mainPartOfTokenJWT, $config['secret_key'], 'HS256');
 
                             $tokenInsertResult = $Link->query("INSERT INTO token(`Значение токена`, `Идентификатор пользователя`, `Действительно до`) VALUES('$token', '$userId', '$expirationTime')");
 
@@ -460,9 +498,13 @@ function findUser($body)
 
 function logoutUserWithThisToken($token)
 {
+    
+
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -522,7 +564,9 @@ function getProfile($token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -546,7 +590,7 @@ function getProfile($token)
 
                     $body = [
                         "id" => $profile["Идентификатор пользователя"],
-                        "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1] . "." . time(),
+                        "createTime" => $dateAndTime[0] . "T" . $dateAndTime[1],
                         "fullName" => $profile["ФИО"],
                         "birthDate" => (isset($profile["День рождения"]) ? ($profile["День рождения"]) : null),
                         "gender" => $profile["Пол"],
@@ -565,7 +609,7 @@ function getProfile($token)
             }
             else
             {
-                setHTTPStatus("401", "Токен не подходит ни одному пользователю");
+                setHTTPStatus("500", "Ошибка при удалении старых токенов " .$Link->error);
             }
         }
 
@@ -581,7 +625,9 @@ function changeUserProfile($token, $body)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -618,7 +664,7 @@ function changeUserProfile($token, $body)
 
                         if (isset($body["birthDate"]))
                         {
-                            $birthDate = $body["birthDate"];
+                            $birthDate = getBirthDay($body["birthDate"]);
                             $flagIsCorrectBirthDate = checkBirthday($birthDate);
                         }
 
@@ -657,7 +703,7 @@ function changeUserProfile($token, $body)
                             }
                             else
                             {
-                                setHTTPStatus("200", null);
+                                bodyWithRequest("200", null);
                             }
                         }
                         else
