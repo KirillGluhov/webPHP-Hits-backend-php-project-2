@@ -251,9 +251,7 @@ function createPost($body, $token)
 {
     if (isset($token))
     {
-        global $config;
-
-        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
         if (!$Link)
         {
@@ -488,9 +486,7 @@ function putLikeToPost($postId, $token)
 {
     if (isset($token))
     {
-        global $config;
-
-        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
         if (!$Link)
         {
@@ -573,9 +569,7 @@ function deleteLikeFromPost($postId, $token)
 {
     if (isset($token))
     {
-        global $config;
-
-        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
         if (!$Link)
         {
@@ -658,9 +652,7 @@ function addCommentToPost($postId, $token, $body)
 {
     if (isset($token))
     {
-        global $config;
-
-        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
         if (!$Link)
         {
@@ -790,9 +782,7 @@ function addCommentToPost($postId, $token, $body)
 
 function getPostInfo($postId, $token)
 {
-    global $config;
-
-    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
     if (!$Link)
     {
@@ -955,9 +945,7 @@ function getPostInfo($postId, $token)
 
 function getAllPosts($params, $token)
 {
-    global $config;
-
-    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
     if (!$Link)
     {
