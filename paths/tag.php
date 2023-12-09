@@ -2,9 +2,7 @@
 
 function giveTags()
 {
-    global $config;
-
-    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
+    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
 
     if (!$Link) 
     {
