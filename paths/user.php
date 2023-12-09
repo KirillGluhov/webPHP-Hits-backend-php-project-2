@@ -272,6 +272,32 @@ function saveUser($body)
                 if ($birthDate !== null)
                 {
                     $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
+
+                    if (!$dateTime)
+                    {
+                        $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $birthDate);
+
+                        if (!$dateTime)
+                        {
+                            $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u', $birthDate);
+
+                            if (!$dateTime)
+                            {
+                                $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s', $birthDate);
+
+                                if (!$dateTime)
+                                {
+                                    $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $birthDate);
+
+                                    if (!$dateTime)
+                                    {
+                                        $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     $dateOfBirthday = $dateTime->format("Y-m-d");
                 }
 
