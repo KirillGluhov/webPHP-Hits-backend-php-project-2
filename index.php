@@ -2,8 +2,11 @@
 include_once "helpers/headers.php";
 <<<<<<< HEAD
 =======
+<<<<<<< HEAD
+=======
 include_once "../localhost/config.php";
 >>>>>>> globals
+>>>>>>> post
 
 include_once "paths/user.php";
 include_once "paths/address.php";
