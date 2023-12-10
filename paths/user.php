@@ -498,8 +498,6 @@ function findUser($body)
 
 function logoutUserWithThisToken($token)
 {
-    
-
     if (isset($token))
     {
         global $config;
@@ -678,7 +676,7 @@ function changeUserProfile($token, $body)
 
                         if ($flagIsCorrectEmail * $flagIsCorrectFullName * $flagIsCorrectGender * $flagIsCorrectBirthDate * $flagIsCorrectPhoneNumber == 1)
                         {
-                            $userInsertResult = null;
+                            $updateProfileData = null;
 
                             if ($birthDate != null && $phoneNumber != null)
                             {
@@ -697,7 +695,7 @@ function changeUserProfile($token, $body)
                                 $updateProfileData = $Link->query("UPDATE user SET `Email` = '$email', `ФИО` = '$fullName', `Пол` = '$gender' WHERE `Идентификатор пользователя` = '$userId'");
                             }
 
-                            if ($userInsertResult)
+                            if (!$updateProfileData)
                             {
                                 setHTTPStatus("500", "Ошибка при изменении данных пользователя " .$Link->error);
                             }
