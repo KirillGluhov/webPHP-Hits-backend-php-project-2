@@ -79,7 +79,6 @@ Thumbs.db
 *.komodoproject
 
 # ignore log files and databases
-*.logs
 *.log
 *.sql
 *.sqlite
