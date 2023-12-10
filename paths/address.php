@@ -170,7 +170,9 @@ function functionThatReturnBody($chooseAdressesWithoutBuildings, $chooseBuilding
 
 function findElementsOnOneLevelWithThisParams($params)
 {
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link)
     {
@@ -323,7 +325,9 @@ function findElementsOnOneLevelWithThisParams($params)
 function createChainFromAdresses($params)
 {
 
-    $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+    global $config;
+
+    $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
     if (!$Link)
     {

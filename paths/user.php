@@ -272,10 +272,38 @@ function saveUser($body)
                 if ($birthDate !== null)
                 {
                     $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u\Z', $birthDate);
+
+                    if (!$dateTime)
+                    {
+                        $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s\Z', $birthDate);
+
+                        if (!$dateTime)
+                        {
+                            $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s.u', $birthDate);
+
+                            if (!$dateTime)
+                            {
+                                $dateTime = DateTime::createFromFormat('Y-m-d\TH:i:s', $birthDate);
+
+                                if (!$dateTime)
+                                {
+                                    $dateTime = DateTime::createFromFormat('Y-m-d H:i:s', $birthDate);
+
+                                    if (!$dateTime)
+                                    {
+                                        $dateTime = DateTime::createFromFormat('Y-m-d', $birthDate);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
                     $dateOfBirthday = $dateTime->format("Y-m-d");
                 }
 
-                $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+                global $config;
+
+                $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
                 if (!$Link)
                 {
@@ -304,7 +332,7 @@ function saveUser($body)
                         "nameId" => $uuid
                     );
 
-                    $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+                    $token = JWT::encode($mainPartOfTokenJWT, $config['secret_key'], 'HS256');
 
                     $isUserExist = $Link->query("SELECT `Email` FROM user WHERE user.`Email` = '$email' ")->fetch_assoc();
 
@@ -384,7 +412,9 @@ function findUser($body)
     {
         if (isset($body["email"]) && isset($body["password"]))
         {
-            $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+            global $config;
+
+            $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
             if (!$Link)
             {
@@ -424,7 +454,7 @@ function findUser($body)
                                 "nameId" => $userId
                             );
         
-                            $token = JWT::encode($mainPartOfTokenJWT, $password, 'HS256');
+                            $token = JWT::encode($mainPartOfTokenJWT, $config['secret_key'], 'HS256');
 
                             $tokenInsertResult = $Link->query("INSERT INTO token(`Значение токена`, `Идентификатор пользователя`, `Действительно до`) VALUES('$token', '$userId', '$expirationTime')");
 
@@ -468,9 +498,13 @@ function findUser($body)
 
 function logoutUserWithThisToken($token)
 {
+    
+
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -530,7 +564,9 @@ function getProfile($token)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
@@ -589,7 +625,9 @@ function changeUserProfile($token, $body)
 {
     if (isset($token))
     {
-        $Link = mysqli_connect("127.0.0.1", "root", "kirillgluhov", "blog");
+        global $config;
+
+        $Link = mysqli_connect($config['db_host'], $config['db_username'], $config['db_password'], $config['db_name']);
 
         if (!$Link)
         {
